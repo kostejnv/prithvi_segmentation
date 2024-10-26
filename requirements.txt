@@ -1,0 +1,9 @@
+torch
+torchvision
+timm
+einops
+rasterio
+pandas
+numpy
+PyYAML
+tqdm
