@@ -5,7 +5,7 @@ from models.blocks import DownBlock, UpBlockWithSkip, ResNetBlock
 from models.prithvi_encoder import PrithviEncoder
     
 class PrithviUNet(nn.Module):
-    def __init__(self, in_channels, out_channels, weights_path, device):
+    def __init__(self, in_channels, out_channels, weights_path, device, prithvi_encoder_size=None):
         super(PrithviUNet, self).__init__()
         # Encoder
         self.down1 = DownBlock(in_channels, in_channels*4) # 6 -> 24, 224 -> 112
@@ -14,7 +14,7 @@ class PrithviUNet(nn.Module):
         self.down4 = DownBlock(in_channels*64, in_channels*128) # 384 -> 768, 28 -> 14
         
         # Prithvi
-        self.prithvi_encoder = PrithviEncoder(weights_path, device)
+        self.prithvi_encoder = PrithviEncoder(weights_path, device, target_channels=prithvi_encoder_size)
         self.change_prithvi_trainability(False)
         
         # Bottleneck
