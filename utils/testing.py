@@ -1,5 +1,4 @@
 import matplotlib.pyplot as plt
-from utils.iou import IoUMetric
 import torchmetrics as TM
 import torch
 from torch import nn
@@ -28,26 +27,16 @@ def computeIOU(output, target, device):
   return iou
 
 def computeMetrics(output, target, device):
-  TP = truePositives(output, target, device)
-  FN = falseNegatives(output, target, device)
+  TP = truePositives(output, target, device).float()
+  FN = falseNegatives(output, target, device).float()
   FP = falsePositives(output, target, device).float()
   TN = trueNegatives(output, target, device).float()
   
-  IOU_floods = TP / (TP + FN + FP)
-  IOU_non_floods = TN / (TN + FP + FN)
-  Avg_IOU = (IOU_floods + IOU_non_floods) / 2
-  
-  ACC_floods = TP / (TP + FN)
-  ACC_non_floods = TN / (TN + FP)
-  Avg_ACC = (ACC_floods + ACC_non_floods) / 2
-  
   return {
-    'IOU_floods': IOU_floods,
-    'IOU_non_floods': IOU_non_floods,
-    'Avg_IOU': Avg_IOU,
-    'ACC_floods': ACC_floods,
-    'ACC_non_floods': ACC_non_floods,
-    'Avg_ACC': Avg_ACC
+      "TP": TP,
+      "FN": FN,
+      "FP": FP,
+      "TN": TN
   }
   
 def computeAccuracy(output, target, device):

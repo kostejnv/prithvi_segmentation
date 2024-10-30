@@ -120,12 +120,25 @@ def test(model, loader, epoch):
     # end for
     
     
-    metricss = {k: v / index for k, v in metricss.items()}
+    TP, FP, TN, FN = metricss['TP'].item(), metricss['FP'].item(), metricss['TN'].item(), metricss['FN'].item()
     
-    logger.info(f"Test: Metrics: {metricss}")
+    IOU_floods = TP / (TP + FN + FP)
+    IOU_non_floods = TN / (TN + FP + FN)
+    Avg_IOU = (IOU_floods + IOU_non_floods) / 2
+
+    ACC_floods = TP / (TP + FN)
+    ACC_non_floods = TN / (TN + FP)
+    Avg_ACC = (ACC_floods + ACC_non_floods) / 2
     
-    for k, v in metricss.items():
-        writer.add_scalar(f"{k}/test", v, epoch)
+    logger.info(f"Test: IOU Floods: {IOU_floods:.4f}, IOU Non-Floods: {IOU_non_floods:.4f}, Avg IOU: {Avg_IOU:.4f}")
+    logger.info(f"Test: ACC Floods: {ACC_floods:.4f}, ACC Non-Floods: {ACC_non_floods:.4f}, Avg ACC: {Avg_ACC:.4f}")
+    
+    writer.add_scalar("IOU_floods/test", IOU_floods, epoch)
+    writer.add_scalar("IOU_non_floods/test", IOU_non_floods, epoch)
+    writer.add_scalar("Avg_IOU/test", Avg_IOU, epoch)
+    writer.add_scalar("ACC_floods/test", ACC_floods, epoch)
+    writer.add_scalar("ACC_non_floods/test", ACC_non_floods, epoch)
+    writer.add_scalar("Avg_ACC/test", Avg_ACC, epoch)
         
 def main(args):
     train_loader = get_loader(args.data_path, DatasetType.TRAIN.value, args)
