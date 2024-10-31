@@ -42,6 +42,7 @@ def parse_arguments():
     parser.add_argument('--model', type=str, default='prithvi_unet', help='Model to use for training (unet, prithvi_unet, prithvi)')
     
     parser.add_argument('--prithvi_out_channels', type=int, help='If set, force number of output channels from the Prithvi encoders')
+    parser.add_argument('--unet_out_channels', type=int, help='If set, force number of output channels from the UNet encoders')
     return parser.parse_args()
     
 args = parse_arguments()
@@ -147,9 +148,9 @@ def main(args):
     
     match args.model:
         case 'unet':
-            model = UNet(in_channels=args.in_channels, out_channels=args.num_classes)
+            model = UNet(in_channels=args.in_channels, out_channels=args.num_classes, unet_encoder_size=args.unet_out_channels)
         case 'prithvi_unet':
-            model = PrithviUNet(in_channels=args.in_channels, out_channels=args.num_classes, weights_path='./prithvi/Prithvi_100M.pt', device=device, prithvi_encoder_size=args.prithvi_out_channels)
+            model = PrithviUNet(in_channels=args.in_channels, out_channels=args.num_classes, weights_path='./prithvi/Prithvi_100M.pt', device=device, prithvi_encoder_size=args.prithvi_out_channels, unet_encoder_size=args.unet_out_channels)
         case 'prithvi':
             model = PritviSegmenter(weights_path='./prithvi/Prithvi_100M.pt', device=device, prithvi_encoder_size=args.prithvi_out_channels)
     model.to(device)
