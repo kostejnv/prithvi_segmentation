@@ -80,7 +80,7 @@ def train_model(model, loader, optimizer, criterion, epoch):
         outputs = model(imgs)
         targets = masks.squeeze(1)
 
-        loss = criterion(outputs, targets)
+        loss = criterion(outputs, targets.long())
         iou = computeIOU(outputs, targets, device)
         accuracy = computeAccuracy(outputs, targets, device)
         
