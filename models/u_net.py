@@ -20,10 +20,10 @@ class UNet(nn.Module):
         self.bottleneck = ResNetBlock(unet_encoder_size)
         
         # Decoder
-        self.up1 = UpBlockWithSkip(unet_encoder_size, in_channels*64) # 768 -> 384, 14 -> 28
-        self.up2 = UpBlockWithSkip(in_channels*64, in_channels*16) # 384 -> 96, 28 -> 56
-        self.up3 = UpBlockWithSkip(in_channels*16, in_channels*4) # 96 -> 24, 56 -> 112
-        self.up4 = UpBlockWithSkip(in_channels*4, in_channels) # 24 -> 6, 112 -> 224
+        self.up1 = UpBlockWithSkip(2*unet_encoder_size, in_channels*64) # 768 -> 384, 14 -> 28
+        self.up2 = UpBlockWithSkip(2*in_channels*64, in_channels*16) # 384 -> 96, 28 -> 56
+        self.up3 = UpBlockWithSkip(2*in_channels*16, in_channels*4) # 96 -> 24, 56 -> 112
+        self.up4 = UpBlockWithSkip(2*in_channels*4, in_channels) # 24 -> 6, 112 -> 224
         
         self.out = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1)
         

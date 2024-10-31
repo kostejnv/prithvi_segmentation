@@ -41,8 +41,8 @@ class UpBlockWithSkip(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(UpBlockWithSkip, self).__init__()
         self.relu = nn.ReLU(inplace=True)
-        self.resnet_block = ResNetBlock(in_channels*2)
-        self.up_conv = nn.ConvTranspose2d(in_channels*2, out_channels, kernel_size=2, stride=2)
+        self.resnet_block = ResNetBlock(in_channels)
+        self.up_conv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=2, stride=2)
         self.batch_norm = nn.BatchNorm2d(out_channels)
         
     def forward(self, x, skip):

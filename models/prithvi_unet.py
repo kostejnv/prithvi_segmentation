@@ -5,11 +5,10 @@ from models.blocks import DownBlock, UpBlockWithSkip, ResNetBlock
 from models.prithvi_encoder import PrithviEncoder
     
 class PrithviUNet(nn.Module):
-    def __init__(self, in_channels, out_channels, weights_path, device, prithvi_encoder_size=None, unet_encoder_size=None):
+    def __init__(self, in_channels, out_channels, weights_path, device, prithvi_encoder_size, unet_encoder_size):
         super(PrithviUNet, self).__init__()
-
-        if unet_encoder_size is None:
-            unet_encoder_size = in_channels * 128
+            
+        assert unet_encoder_size == prithvi_encoder_size, "The prithvi and unet encoder sizes must be the same"
 
         # Encoder
         self.down1 = DownBlock(in_channels, in_channels*4) # 6 -> 24, 224 -> 112
@@ -25,10 +24,10 @@ class PrithviUNet(nn.Module):
         self.bottleneck = ResNetBlock(unet_encoder_size)
         
         # Decoder
-        self.up1 = UpBlockWithSkip(in_channels*128 + unet_encoder_size, in_channels*64) # 1536 -> 384, 14 -> 28
-        self.up2 = UpBlockWithSkip(in_channels*64, in_channels*16) # 384 -> 96, 28 -> 56
-        self.up3 = UpBlockWithSkip(in_channels*16, in_channels*4) # 96 -> 24, 56 -> 112
-        self.up4 = UpBlockWithSkip(in_channels*4, in_channels) # 24 -> 6, 112 -> 224
+        self.up1 = UpBlockWithSkip(prithvi_encoder_size + unet_encoder_size, in_channels*64) # 1536 -> 384, 14 -> 28
+        self.up2 = UpBlockWithSkip(2*in_channels*64, in_channels*16) # 384 -> 96, 28 -> 56
+        self.up3 = UpBlockWithSkip(2*in_channels*16, in_channels*4) # 96 -> 24, 56 -> 112
+        self.up4 = UpBlockWithSkip(2*in_channels*4, in_channels) # 24 -> 6, 112 -> 224
         
         self.out = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1)
         
@@ -46,10 +45,9 @@ class PrithviUNet(nn.Module):
         # Bottleneck
         x_bottleneck = self.bottleneck(x4)
         x_prithvi = self.prithvi_encoder(x)
-        x = torch.cat([x_bottleneck, x_prithvi], dim=1)
         
         # Decoder
-        x = self.up1(x, x4)
+        x = self.up1(x_bottleneck, x_prithvi)
         x = self.up2(x, x3)
         x = self.up3(x, x2)
         x = self.up4(x, x1)

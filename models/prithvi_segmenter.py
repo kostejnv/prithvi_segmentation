@@ -6,18 +6,21 @@ from models.blocks import UpBlock
 class PritviSegmenter(nn.Module):
     BOTTLENECK_WIN_SIZE = 14
     
-    def __init__(self, weights_path, device, prithvi_encoder_size=None):
+    def __init__(self, weights_path, device, output_channels, prithvi_encoder_size):
         super(PritviSegmenter, self).__init__()
         self.device = device
         self.encoder = PrithviEncoder(weights_path, device, target_channels=prithvi_encoder_size)
         self.change_prithvi_trainability(False)
+        self.output_channels = output_channels
         
         # Decoder
         in_channels = self.BOTTLENECK_WIN_SIZE
-        self.up1 = UpBlock(in_channels*128, in_channels*64) # 768 -> 384, 14 -> 28
+        self.up1 = UpBlock(prithvi_encoder_size, in_channels*64) # 768 -> 384, 14 -> 28
         self.up2 = UpBlock(in_channels*64, in_channels*16) # 384 -> 96, 28 -> 56
         self.up3 = UpBlock(in_channels*16, in_channels*4) # 96 -> 24, 56 -> 112
         self.up4 = UpBlock(in_channels*4, in_channels) # 24 -> 6, 112 -> 224
+        
+        self.out = nn.Conv2d(in_channels, self.output_channels, kernel_size=3, stride=1, padding=1)
         
     def change_prithvi_trainability(self, trainable):
         for param in self.encoder.parameters():
@@ -31,5 +34,4 @@ class PritviSegmenter(nn.Module):
         x = self.up2(x)
         x = self.up3(x)
         x = self.up4(x)
-        
-        return x
+        return self.out(x)

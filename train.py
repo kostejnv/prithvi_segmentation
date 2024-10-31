@@ -41,9 +41,9 @@ def parse_arguments():
     parser.add_argument('--learning_rate', type=float, default=5e-4, help='Learning rate for the optimizer.')
     parser.add_argument('--model', type=str, default='prithvi_unet', help='Model to use for training (unet, prithvi_unet, prithvi)')
     
-    parser.add_argument('--prithvi_out_channels', type=int, help='If set, force number of output channels from the Prithvi encoders')
-    parser.add_argument('--unet_out_channels', type=int, help='If set, force number of output channels from the UNet encoders')
-    parser.add_argument('--prithvi_finetune_ratio', type=float, help='Expects positive float. If set, Prithvi will be finetuned at 0.1 * learning_rate for the set number of additional epochs, with respect to original epoch count. (if set to 1.5 and epochs=100, train for additional 150 epochs)')
+    parser.add_argument('--prithvi_out_channels', type=int, default=768, help='If set, force number of output channels from the Prithvi encoders')
+    parser.add_argument('--unet_out_channels', type=int, default=768, help='If set, force number of output channels from the UNet encoders')
+    parser.add_argument('--prithvi_finetune_ratio', type=float, default=None, help='Expects positive float. If set, Prithvi will be finetuned at 0.1 * learning_rate for the set number of additional epochs, with respect to original epoch count. (if set to 1.5 and epochs=100, train for additional 150 epochs)')
     return parser.parse_args()
     
 args = parse_arguments()
@@ -79,7 +79,7 @@ def train_model(model, loader, optimizer, criterion, epoch):
         masks = masks.to(device)
         outputs = model(imgs)
         targets = masks.squeeze(1)
-        
+
         loss = criterion(outputs, targets)
         iou = computeIOU(outputs, targets, device)
         accuracy = computeAccuracy(outputs, targets, device)
@@ -153,10 +153,9 @@ def main(args):
         case 'prithvi_unet':
             model = PrithviUNet(in_channels=args.in_channels, out_channels=args.num_classes, weights_path='./prithvi/Prithvi_100M.pt', device=device, prithvi_encoder_size=args.prithvi_out_channels, unet_encoder_size=args.unet_out_channels)
         case 'prithvi':
-            model = PritviSegmenter(weights_path='./prithvi/Prithvi_100M.pt', device=device, prithvi_encoder_size=args.prithvi_out_channels)
+            model = PritviSegmenter(weights_path='./prithvi/Prithvi_100M.pt', device=device, output_channels=args.num_classes, prithvi_encoder_size=args.prithvi_out_channels)
     model.to(device)
     
-    model = UNet(in_channels=args.in_channels, out_channels=args.num_classes).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate)
     criterion = nn.CrossEntropyLoss(weight=torch.tensor([3,7]).float().to(device), ignore_index=255)
     scheduler = torch.optim.lr_scheduler.PolynomialLR(optimizer, args.epochs)
@@ -184,19 +183,21 @@ def main(args):
     
     if 'prithvi' in args.model and args.prithvi_finetune_ratio is not None:
             print('Switching Prithvi training on...')
+            finetune_epochs = int(args.epochs * args.prithvi_finetune_ratio)
 
-            # Update the learning rate
-            for param_group in optimizer.param_groups:
-                param_group['lr'] = args.learning_rate * 0.1
             
             # Turn on prithvi training
             model.change_prithvi_trainability(True)
             model.to(device)
+            
+            # Update the learning rate
+            args.learning_rate = args.learning_rate * 0.1
+            optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate)
+            scheduler = torch.optim.lr_scheduler.PolynomialLR(optimizer, finetune_epochs)
 
             # Continue Training
             # TODO: Find a way to not repeat this
-            finetune_epochs = int(args.epochs * args.prithvi_finetune_ratio)
-            for epoch in range(finetune_epochs):
+            for epoch in range(args.epochs, args.epochs + finetune_epochs + 1):
                 logger.info(f"Fine-tunning Epoch {epoch+1}/{finetune_epochs}")
                 train_model(model, train_loader, optimizer, criterion, epoch)
                 test(model, valid_loader, epoch)
