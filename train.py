@@ -43,6 +43,7 @@ def parse_arguments():
     
     parser.add_argument('--prithvi_out_channels', type=int, help='If set, force number of output channels from the Prithvi encoders')
     parser.add_argument('--unet_out_channels', type=int, help='If set, force number of output channels from the UNet encoders')
+    parser.add_argument('--prithvi_finetune_ratio', type=float, help='Expects positive float. If set, Prithvi will be finetuned at 0.1 * learning_rate for the set number of additional epochs, with respect to original epoch count. (if set to 1.5 and epochs=100, train for additional 150 epochs)')
     return parser.parse_args()
     
 args = parse_arguments()
@@ -180,6 +181,29 @@ def main(args):
         scheduler.step()        
         print_test_dataset_masks(model, test_samples[0], test_samples[1], epoch+1, args.log_dir, device)
         torch.save(model.state_dict(), os.path.join(args.model_dir, f"model_{args.version}_{epoch+1}.pt"))
+    
+    if 'prithvi' in args.model and args.prithvi_finetune_ratio is not None:
+            print('Switching Prithvi training on...')
+
+            # Update the learning rate
+            for param_group in optimizer.param_groups:
+                param_group['lr'] = args.learning_rate * 0.1
+            
+            # Turn on prithvi training
+            model.change_prithvi_trainability(True)
+            model.to(device)
+
+            # Continue Training
+            # TODO: Find a way to not repeat this
+            finetune_epochs = int(args.epochs * args.prithvi_finetune_ratio)
+            for epoch in range(finetune_epochs):
+                logger.info(f"Fine-tunning Epoch {epoch+1}/{finetune_epochs}")
+                train_model(model, train_loader, optimizer, criterion, epoch)
+                test(model, valid_loader, epoch)
+                scheduler.step()        
+                print_test_dataset_masks(model, test_samples[0], test_samples[1], epoch+1, args.log_dir, device)
+                torch.save(model.state_dict(), os.path.join(args.model_dir, f"model_finetune_{args.version}_{epoch+1}.pt"))
+
     
 if __name__ == '__main__':
     main(args)
