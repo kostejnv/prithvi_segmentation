@@ -1,7 +1,7 @@
 import math
 import torch
 import torch.nn as nn
-from models.blocks import DownBlock, UpBlockWithSkip, ResNetBlock
+from models.blocks import DownBlock, UpBlockWithSkip, Block
     
 class UNet(nn.Module):
     def __init__(self, in_channels, out_channels, unet_encoder_size=None):
@@ -17,7 +17,7 @@ class UNet(nn.Module):
         self.down4 = DownBlock(in_channels*64, unet_encoder_size) # 384 -> 768, 28 -> 14
         
         # Bottleneck
-        self.bottleneck = ResNetBlock(unet_encoder_size)
+        self.bottleneck = Block(unet_encoder_size, unet_encoder_size)
         
         # Decoder
         self.up1 = UpBlockWithSkip(2*unet_encoder_size, in_channels*64) # 768 -> 384, 14 -> 28

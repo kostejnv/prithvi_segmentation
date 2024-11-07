@@ -1,7 +1,8 @@
 import math
 import torch
 import torch.nn as nn
-from models.blocks import DownBlock, UpBlockWithSkip, ResNetBlock
+from models.blocks import DownBlock, UpBlockWithSkip, Block, UpBlock
+from models.random_half_dropout_layer import RandomHalfDropoutLayer
 from models.prithvi_encoder import PrithviEncoder
     
 class PrithviUNet(nn.Module):
@@ -18,13 +19,12 @@ class PrithviUNet(nn.Module):
         
         # Prithvi
         self.prithvi_encoder = PrithviEncoder(weights_path, device, target_channels=prithvi_encoder_size)
-        self.change_prithvi_trainability(False)
         
-        # Bottleneck
-        self.bottleneck = ResNetBlock(unet_encoder_size)
+        # Training Switcher
+        self.random_half_dropout = RandomHalfDropoutLayer()
         
         # Decoder
-        self.up1 = UpBlockWithSkip(prithvi_encoder_size + unet_encoder_size, in_channels*64) # 1536 -> 384, 14 -> 28
+        self.up1 = UpBlock(prithvi_encoder_size + unet_encoder_size, in_channels*64) # 1536 -> 384, 14 -> 28
         self.up2 = UpBlockWithSkip(2*in_channels*64, in_channels*16) # 384 -> 96, 28 -> 56
         self.up3 = UpBlockWithSkip(2*in_channels*16, in_channels*4) # 96 -> 24, 56 -> 112
         self.up4 = UpBlockWithSkip(2*in_channels*4, in_channels) # 24 -> 6, 112 -> 224
@@ -32,7 +32,7 @@ class PrithviUNet(nn.Module):
         self.out = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1)
         
     def change_prithvi_trainability(self, trainable):
-        for param in self.prithvi_encoder.parameters():
+        for param in self.prithvi_encoder.prithvi.parameters():
             param.requires_grad = trainable
         
     def forward(self, x):
@@ -40,14 +40,17 @@ class PrithviUNet(nn.Module):
         x1 = self.down1(x)
         x2 = self.down2(x1)
         x3 = self.down3(x2)
-        x4 = self.down4(x3)
         
-        # Bottleneck
-        x_bottleneck = self.bottleneck(x4)
+        x_bottleneck = self.down4(x3)
         x_prithvi = self.prithvi_encoder(x)
+        x = torch.cat([x_bottleneck, x_prithvi], dim=1)
+        
+        # mask on part to make training more robust
+        x = self.random_half_dropout(x)
+        
         
         # Decoder
-        x = self.up1(x_bottleneck, x_prithvi)
+        x = self.up1(x)
         x = self.up2(x, x3)
         x = self.up3(x, x2)
         x = self.up4(x, x1)
