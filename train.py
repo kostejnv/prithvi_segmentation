@@ -36,7 +36,7 @@ def parse_arguments():
     parser.add_argument('--data_path', type=str, default='./data/sen1floods11', help='Path to the data directory.')
     parser.add_argument('--version', type=str, default='testing', help='Model version')
     parser.add_argument('--batch_size', type=int, default=4, help='Batch size for training.')
-    parser.add_argument('--epochs', type=int, default=3, help='Number of training epochs.')
+    parser.add_argument('--epochs', type=int, default=50, help='Number of training epochs.')
     parser.add_argument('--learning_rate', type=float, default=5e-4, help='Learning rate for the optimizer.')
     parser.add_argument('--model', type=str, default='prithvi_unet', help='Model to use for training (unet, prithvi_unet, prithvi)')
     
