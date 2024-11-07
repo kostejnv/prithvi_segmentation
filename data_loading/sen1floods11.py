@@ -22,8 +22,8 @@ class InMemoryDataset(torch.utils.data.Dataset):
 
 USED_BANDS = (1,2,3,8,11,12)
 INPUT_SIZE = 224
-MEANS = [1369.2222, 1337.6727, 1194.3894, 3045.0596, 2017.0933, 1168.5023]
-STDS = [338.1057, 353.5441, 449.6607, 755.6641, 613.0259, 468.9224]
+MEANS = [0.13692222, 0.13376727, 0.11943894, 0.30450596, 0.20170933, 0.11685023]
+STDS = [0.03381057, 0.03535441, 0.04496607, 0.07556641, 0.06130259, 0.04689224]
 
 
 def processAndAugment(data):
@@ -32,8 +32,8 @@ def processAndAugment(data):
     label = label.squeeze().astype(np.int16)
     
     img, label = torch.tensor(img), torch.tensor(label)
-    # norm = transforms.Normalize(MEANS, STDS)
-    # img = norm(img)
+    norm = transforms.Normalize(MEANS, STDS)
+    img = norm(img)
 
     # Get params for random transforms
     i, j, h, w = transforms.RandomCrop.get_params(img, (INPUT_SIZE, INPUT_SIZE))
@@ -56,10 +56,9 @@ def processTestIm(data):
     label = label.squeeze().astype(np.int16)
     
     img, label = torch.tensor(img), torch.tensor(label)
-    # norm = transforms.Normalize(MEANS, STDS)
-    # img = norm(img)
+    norm = transforms.Normalize(MEANS, STDS)
+    img = norm(img)
     
-
     ims = [F.crop(img, 0, 0, INPUT_SIZE, INPUT_SIZE), F.crop(img, 0, INPUT_SIZE, INPUT_SIZE, INPUT_SIZE),
                 F.crop(img, INPUT_SIZE, 0, INPUT_SIZE, INPUT_SIZE), F.crop(img, INPUT_SIZE, INPUT_SIZE, INPUT_SIZE, INPUT_SIZE)]
     labels = [F.crop(label, 0, 0, INPUT_SIZE, INPUT_SIZE), F.crop(label, 0, INPUT_SIZE, INPUT_SIZE, INPUT_SIZE),
