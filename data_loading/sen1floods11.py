@@ -50,7 +50,7 @@ def processAndAugment(data):
     return img, label
 
 
-def processTestIm(data):
+def processTestData(data):
     img,label = data
     img = img[USED_BANDS, :, :].astype(np.float32)
     label = label.squeeze().astype(np.int16)
@@ -68,6 +68,13 @@ def processTestIm(data):
     labels = torch.stack([label.squeeze() for label in labels])
     
     return ims, labels
+  
+def processTestIm(img, bands):
+    img = img[bands, :, :].astype(np.float32)
+    img = torch.tensor(img)
+    norm = transforms.Normalize(MEANS, STDS)
+    img = norm(img)
+    return img.unsqueeze(0)
 
 
 def getArrFlood(fname):
@@ -108,7 +115,7 @@ def get_train_loader(data_path, args):
     
 def get_test_loader(data_path, type):
     valid_data = load_flood_data(data_path, type)
-    valid_dataset = InMemoryDataset(valid_data, processTestIm)
+    valid_dataset = InMemoryDataset(valid_data, processTestData)
     valid_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=3, shuffle=True, sampler=None,
                     batch_sampler=None, num_workers=0, collate_fn=lambda x: (torch.cat([a[0] for a in x], 0), torch.cat([a[1] for a in x], 0)),
                     pin_memory=True, drop_last=False, timeout=0,

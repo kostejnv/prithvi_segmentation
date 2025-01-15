@@ -5,6 +5,7 @@ from torch import nn
 import torchvision
 import torchvision.transforms as T
 import os
+from models.ensemble_segmenter import EnsembleSegmenter
 
 t2img = T.ToPILImage()
 img2t = T.ToTensor()
@@ -110,6 +111,9 @@ def print_test_dataset_masks(model, inputs, labels, epoch, save_path, device):
     model.eval()
     with torch.no_grad():
         outputs = model(inputs.to(device))
+        
+    if isinstance(model, EnsembleSegmenter):
+        outputs = (outputs[0] + outputs[1]) / 2.0
         
     labels = labels.to(device).unsqueeze(1)
     predictions = torch.argmax(outputs, dim=1)

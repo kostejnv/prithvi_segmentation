@@ -66,3 +66,7 @@ This will start the training process using the specified dataset and model direc
 - `--checkpoint_dir`: Directory to save model checkpoints.
 - `--log_dir`: Directory to save training logs.
 
+### Hyperparameter Finetuning Parameters
+
+- `--combine_func`: Combination function applied only for U-Prithvi mode. Options: [concat, product, sum]. (default: concat)
+- `--random_dropout_prob`: The probability that one of the embeddings will be dropped. (default: 2/3)

@@ -6,10 +6,27 @@ from models.random_half_dropout_layer import RandomHalfDropoutLayer
 from models.prithvi_encoder import PrithviEncoder
     
 class PrithviUNet(nn.Module):
-    def __init__(self, in_channels, out_channels, weights_path, device, prithvi_encoder_size, unet_encoder_size):
+    def __init__(self, in_channels, out_channels, weights_path, device, prithvi_encoder_size = 768, unet_encoder_size = 768, combine_method = 'concat', dropout_prob=2/3):
         super(PrithviUNet, self).__init__()
             
-        assert unet_encoder_size == prithvi_encoder_size, "The prithvi and unet encoder sizes must be the same"
+        assert (combine_method == 'concat') or (unet_encoder_size == prithvi_encoder_size), "The prithvi and unet encoder sizes must be the same"
+        assert combine_method == 'concat' or dropout_prob == 0, "The dropout probability must be 0 when using add or mul combine methods"
+        
+        self.combine_method = combine_method
+        
+        def get_combine_fn(method):
+            def combine(x1, x2):
+                if method == 'concat':
+                    return torch.cat([x1, x2], dim=1)
+                elif method == 'add':
+                    return x1 + x2
+                elif method == 'mul':
+                    return x1 * x2
+                else:
+                    raise ValueError(f"Unknown combine method: {method}")
+            return combine
+        
+        self.combine = get_combine_fn(combine_method)
 
         # Encoder
         self.down1 = DownBlock(in_channels, in_channels*4) # 6 -> 24, 224 -> 112
@@ -21,10 +38,11 @@ class PrithviUNet(nn.Module):
         self.prithvi_encoder = PrithviEncoder(weights_path, device, target_channels=prithvi_encoder_size)
         
         # Training Switcher
-        self.random_half_dropout = RandomHalfDropoutLayer()
+        self.random_half_dropout = RandomHalfDropoutLayer(dropout_prob)
         
         # Decoder
-        self.up1 = UpBlock(prithvi_encoder_size + unet_encoder_size, in_channels*64) # 1536 -> 384, 14 -> 28
+        combine_size = prithvi_encoder_size + unet_encoder_size if combine_method == 'concat' else prithvi_encoder_size
+        self.up1 = UpBlock(combine_size, in_channels*64) # 1536 -> 384, 14 -> 28
         self.up2 = UpBlockWithSkip(2*in_channels*64, in_channels*16) # 384 -> 96, 28 -> 56
         self.up3 = UpBlockWithSkip(2*in_channels*16, in_channels*4) # 96 -> 24, 56 -> 112
         self.up4 = UpBlockWithSkip(2*in_channels*4, in_channels) # 24 -> 6, 112 -> 224
@@ -43,11 +61,10 @@ class PrithviUNet(nn.Module):
         
         x_bottleneck = self.down4(x3)
         x_prithvi = self.prithvi_encoder(x)
-        x = torch.cat([x_bottleneck, x_prithvi], dim=1)
-        
+        x = self.combine(x_bottleneck, x_prithvi)
+
         # mask on part to make training more robust
         x = self.random_half_dropout(x)
-        
         
         # Decoder
         x = self.up1(x)

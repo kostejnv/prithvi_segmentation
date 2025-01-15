@@ -3,18 +3,25 @@ from torch import nn
 
 # Define the LayerDropout class (assuming it's already imported)
 class RandomHalfDropoutLayer(nn.Module):
-    def __init__(self):
+    def __init__(self, dropout_prob=2/3):
+        self.dropout_prob = dropout_prob
         super(RandomHalfDropoutLayer, self).__init__()
 
     def forward(self, x):
-        if not self.training:
+        if not self.training or self.dropout_prob == 0:
             return x  # No dropout in evaluation mode
         
         batch_size, num_channels, _, _ = x.size()
         half_channels = num_channels // 2
         
         # Create a random strategy tensor for the whole batch (0: mask upper half, 1: mask lower half, 2: no masking)
-        strategies = torch.randint(0, 3, (batch_size, 1, 1, 1), device=x.device)
+        strategies = torch.empty(batch_size, 1, 1, 1, device=x.device).uniform_(0, 1)
+        
+        # Adjust strategies based on dropout probability
+        mask_prob = self.dropout_prob / 2
+        strategies = torch.where(strategies < mask_prob, torch.tensor(0, device=x.device), strategies)
+        strategies = torch.where((strategies >= mask_prob) & (strategies < 2 * mask_prob), torch.tensor(1, device=x.device), strategies)
+        strategies = torch.where(strategies >= 2 * mask_prob, torch.tensor(2, device=x.device), strategies)
         
         # Create masks for upper and lower halves
         upper_mask = torch.ones_like(x)

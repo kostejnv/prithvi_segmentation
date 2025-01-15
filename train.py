@@ -6,6 +6,7 @@ from torch import nn
 from models.u_net import UNet
 from models.prithvi_segmenter import PritviSegmenter
 from models.prithvi_unet import PrithviUNet
+from models.ensemble_segmenter import EnsembleSegmenter
 import os
 from tqdm import tqdm
 from datetime import datetime
@@ -38,13 +39,15 @@ def parse_arguments():
     parser.add_argument('--batch_size', type=int, default=4, help='Batch size for training.')
     parser.add_argument('--epochs', type=int, default=50, help='Number of training epochs.')
     parser.add_argument('--learning_rate', type=float, default=5e-4, help='Learning rate for the optimizer.')
-    parser.add_argument('--model', type=str, default='prithvi_unet', help='Model to use for training (unet, prithvi_unet, prithvi)')
+    parser.add_argument('--model', type=str, default='ensemble', help='Model to use for training (unet, prithvi_unet, prithvi, ensemble)')
     
     parser.add_argument('--prithvi_out_channels', type=int, default=768, help='If set, force number of output channels from the Prithvi encoders')
     parser.add_argument('--unet_out_channels', type=int, default=768, help='If set, force number of output channels from the UNet encoders')
     parser.add_argument('--prithvi_finetune_ratio', type=float, default=1, help='Expects positive float. If set, Prithvi will be finetuned at 0.1 * learning_rate for the set number of additional epochs, with respect to original epoch count. (if set to 1.5 and epochs=100, train for additional 150 epochs)')
     parser.add_argument('--save_model_interval', type=int, default=5, help='Save the model every n epochs')
-    parser.add_argument('--test_interval', type=int, default=5, help='Test the model every n epochs')
+    parser.add_argument('--test_interval', type=int, default=1, help='Test the model every n epochs')
+    parser.add_argument('--combine_func', type=str, default='concat', choices=['concat', 'mul', 'add'], help='Combination function applied only for U-Prithvi mode.')
+    parser.add_argument('--random_dropout_prob', type=float, default=2/3, help='The probability that one of the embeddings will be dropped.')
     return parser.parse_args()
     
 # Get arguments
@@ -82,11 +85,20 @@ def train_model(model, loader, optimizer, criterion, epoch):
         outputs = model(imgs)
         targets = masks.squeeze(1)
 
-        loss = criterion(outputs, targets.long())
+        if isinstance(model, EnsembleSegmenter):
+            loss1 = criterion(outputs[0], targets.long())
+            loss2 = criterion(outputs[1], targets.long())
+            loss1.backward()
+            loss2.backward()
+            outputs = (outputs[0] + outputs[1]) / 2
+            loss = (loss1 + loss2) / 2
+        else:
+            loss = criterion(outputs, targets.long())
+            loss.backward()
+        
         iou = computeIOU(outputs, targets, device)
         accuracy = computeAccuracy(outputs, targets, device)
         
-        loss.backward()
         optimizer.step()
     
         running_samples += targets.size(0)
@@ -113,6 +125,9 @@ def test(model, loader, epoch, set_name='valid'):
         imgs = imgs.to(device)
         masks = masks.to(device)
         predictions = model(imgs)
+        
+        if isinstance(model, EnsembleSegmenter):
+            predictions = (predictions[0] + predictions[1]) / 2
         
         metrics = computeMetrics(predictions, masks, device)
         
@@ -156,9 +171,13 @@ def main(args):
         case 'unet':
             model = UNet(in_channels=args.in_channels, out_channels=args.num_classes, unet_encoder_size=args.unet_out_channels)
         case 'prithvi_unet':
-            model = PrithviUNet(in_channels=args.in_channels, out_channels=args.num_classes, weights_path='./prithvi/Prithvi_100M.pt', device=device, prithvi_encoder_size=args.prithvi_out_channels, unet_encoder_size=args.unet_out_channels)
+            model = PrithviUNet(in_channels=args.in_channels, out_channels=args.num_classes, weights_path='./prithvi/Prithvi_100M.pt', device=device, prithvi_encoder_size=args.prithvi_out_channels, unet_encoder_size=args.unet_out_channels, combine_method=args.combine_func, dropout_prob=args.random_dropout_prob)
         case 'prithvi':
             model = PritviSegmenter(weights_path='./prithvi/Prithvi_100M.pt', device=device, output_channels=args.num_classes, prithvi_encoder_size=args.prithvi_out_channels)
+        case 'ensemble':
+            prithvi_segmenter = PritviSegmenter(weights_path='./prithvi/Prithvi_100M.pt', device=device, output_channels=args.num_classes, prithvi_encoder_size=args.prithvi_out_channels)
+            unet_segmenter = UNet(in_channels=args.in_channels, out_channels=args.num_classes, unet_encoder_size=args.unet_out_channels)
+            model = EnsembleSegmenter(prithvi_segmenter, unet_segmenter)
     model = model.to(device)
     
     valid_samples = next(iter(valid_loader))

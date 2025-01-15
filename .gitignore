@@ -6,3 +6,4 @@ prithvi
 .DS_Store
 .conda/
 prithvi/.conda/
+out/
